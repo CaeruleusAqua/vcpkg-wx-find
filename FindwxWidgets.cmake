@@ -436,221 +436,292 @@ if(wxWidgets_FIND_STYLE STREQUAL "win32")
   # WIN32: Start actual work.
   #-------------------------------------------------------------------
 
-  # Look for an installation tree.
-  find_path(wxWidgets_ROOT_DIR
-    NAMES include/wx/wx.h
-    PATHS
+  # VCPKG_TOOLCHAIN
+  if (VCPKG_TOOLCHAIN)
+    set(wxWidgets_FOUND TRUE)
+    find_path(wxWidgets_ROOT_DIR
+      NAMES include/wx/wx.h
+      PATHS
       ENV wxWidgets_ROOT_DIR
-      ENV WXWIN
-      "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\wxWidgets_is1;Inno Setup: App Path]"  # WX 2.6.x
-      C:/
-      D:/
-      ENV ProgramFiles
-    PATH_SUFFIXES
-      wxWidgets-3.1.0
-      wxWidgets-3.0.2
-      wxWidgets-3.0.1
-      wxWidgets-3.0.0
-      wxWidgets-2.9.5
-      wxWidgets-2.9.4
-      wxWidgets-2.9.3
-      wxWidgets-2.9.2
-      wxWidgets-2.9.1
-      wxWidgets-2.9.0
-      wxWidgets-2.8.9
-      wxWidgets-2.8.8
-      wxWidgets-2.8.7
-      wxWidgets-2.8.6
-      wxWidgets-2.8.5
-      wxWidgets-2.8.4
-      wxWidgets-2.8.3
-      wxWidgets-2.8.2
-      wxWidgets-2.8.1
-      wxWidgets-2.8.0
-      wxWidgets-2.7.4
-      wxWidgets-2.7.3
-      wxWidgets-2.7.2
-      wxWidgets-2.7.1
-      wxWidgets-2.7.0
-      wxWidgets-2.7.0-1
-      wxWidgets-2.6.4
-      wxWidgets-2.6.3
-      wxWidgets-2.6.2
-      wxWidgets-2.6.1
-      wxWidgets-2.5.4
-      wxWidgets-2.5.3
-      wxWidgets-2.5.2
-      wxWidgets-2.5.1
-      wxWidgets
-    DOC "wxWidgets base/installation directory"
-    )
-
-  # If wxWidgets_ROOT_DIR changed, clear lib dir.
-  if(NOT WX_ROOT_DIR STREQUAL wxWidgets_ROOT_DIR)
-    set(WX_ROOT_DIR ${wxWidgets_ROOT_DIR}
-        CACHE INTERNAL "wxWidgets_ROOT_DIR")
-    set(wxWidgets_LIB_DIR "wxWidgets_LIB_DIR-NOTFOUND"
-        CACHE PATH "Cleared." FORCE)
-  endif()
-
-  if(WX_ROOT_DIR)
-    # Select one default tree inside the already determined wx tree.
-    # Prefer static/shared order usually consistent with build
-    # settings.
-    set(_WX_TOOL "")
-    set(_WX_TOOLVER "")
-    set(_WX_ARCH "")
-    if(MINGW)
-      set(_WX_TOOL gcc)
-    elseif(MSVC)
-      set(_WX_TOOL vc)
-      set(_WX_TOOLVER ${MSVC_TOOLSET_VERSION})
-      if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(_WX_ARCH _x64)
-      endif()
-    endif()
-    if(BUILD_SHARED_LIBS)
-      find_path(wxWidgets_LIB_DIR
-        NAMES
-          msw/wx/setup.h
-          mswd/wx/setup.h
-          mswu/wx/setup.h
-          mswud/wx/setup.h
-          mswuniv/wx/setup.h
-          mswunivd/wx/setup.h
-          mswunivu/wx/setup.h
-          mswunivud/wx/setup.h
-        PATHS
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_dll   # prefer shared
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_dll   # prefer shared
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_dll                 # prefer shared
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_lib
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_lib
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_lib
-        DOC "Path to wxWidgets libraries"
-        NO_DEFAULT_PATH
-        )
+      DOC "wxWidgets base/installation directory"
+      )
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+      set(wxWidgets_LIB_DIR ${wxWidgets_ROOT_DIR}/debug/lib)
+      set(wxWidgets_CONFIGURATION mswud)
     else()
-      find_path(wxWidgets_LIB_DIR
-        NAMES
-          msw/wx/setup.h
-          mswd/wx/setup.h
-          mswu/wx/setup.h
-          mswud/wx/setup.h
-          mswuniv/wx/setup.h
-          mswunivd/wx/setup.h
-          mswunivu/wx/setup.h
-          mswunivud/wx/setup.h
+      set(wxWidgets_LIB_DIR ${wxWidgets_ROOT_DIR}/lib)
+      set(wxWidgets_CONFIGURATION mswu)
+    endif()
+
+    set(wxWidgets_BIN_DIR ${wxWidgets_ROOT_DIR}/bin)
+    set(wxWidgets_INCLUDE_DIR ${wxWidgets_ROOT_DIR}/include)
+    file(GLOB DLL ${wxWidgets_BIN_DIR}/wxmsw*.dll)
+    if (DLL)
+      set(wxWidgets_DEFINITIONS WXUSINGDLL)
+      DBG_MSG_V("detected SHARED/DLL tree wxWidgets_LIB_DIR=${wxWidgets_LIB_DIR}")
+    endif ()
+    set(WX_ROOT_DIR ${wxWidgets_ROOT_DIR})
+    set(WX_LIB_DIR ${wxWidgets_LIB_DIR})  # needed by macro
+    set(WX_CONFIGURATION_LIST ${wxWidgets_CONFIGURATION})
+
+    # Set wxWidgets lib setup include directory.
+    if (EXISTS ${wxWidgets_INCLUDE_DIR}/wx/setup.h)
+      set(wxWidgets_INCLUDE_DIRS ${wxWidgets_INCLUDE_DIR})
+    else ()
+      DBG_MSG("wxWidgets_FOUND FALSE because ${wxWidgets_INCLUDE_DIR}/wx/setup.h does not exists.")
+      set(wxWidgets_FOUND FALSE)
+    endif ()
+
+    # Set wxWidgets main include directory.
+    if (EXISTS ${wxWidgets_ROOT_DIR}/include/wx/wx.h)
+      list(APPEND wxWidgets_INCLUDE_DIRS ${wxWidgets_ROOT_DIR}/include)
+    else ()
+      DBG_MSG("wxWidgets_FOUND FALSE because wxWidgets_ROOT_DIR=${wxWidgets_ROOT_DIR} has no ${wxWidgets_ROOT_DIR}/include/wx/wx.h")
+      set(wxWidgets_FOUND FALSE)
+    endif ()
+
+    DBG_MSG_V("WX_CONFIGURATION_LIST=${WX_CONFIGURATION_LIST}")
+
+
+    # Get configuration parameters from the name.
+    WX_GET_NAME_COMPONENTS(${wxWidgets_CONFIGURATION} UNV UCD DBG)
+
+
+    # Find wxWidgets libraries.
+    WX_FIND_LIBS("${UNV}" "${UCD}" "${DBG}")
+    if (WX_USE_REL_AND_DBG)
+      WX_FIND_LIBS("${UNV}" "${UCD}" "d")
+    endif ()
+
+    # Settings for requested libs (i.e., include dir, libraries, etc.).
+    WX_SET_LIBRARIES(wxWidgets_FIND_COMPONENTS "${DBG}")
+
+    # Add necessary definitions for unicode builds
+    if ("${UCD}" STREQUAL "u")
+      list(APPEND wxWidgets_DEFINITIONS UNICODE _UNICODE)
+    endif ()
+
+    # Add necessary definitions for debug builds
+    set(wxWidgets_DEFINITIONS_DEBUG _DEBUG __WXDEBUG__)
+
+
+  else ()
+  # NO VCPKG_TOOLCHAIN  
+    # Look for an installation tree.
+    find_path(wxWidgets_ROOT_DIR
+        NAMES include/wx/wx.h
         PATHS
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_lib   # prefer static
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_lib   # prefer static
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_lib                 # prefer static
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_dll
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_dll
-        ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_dll
-        DOC "Path to wxWidgets libraries"
-        NO_DEFAULT_PATH
+        ENV wxWidgets_ROOT_DIR
+        ENV WXWIN
+        "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\wxWidgets_is1;Inno Setup: App Path]"  # WX 2.6.x
+        C:/
+        D:/
+        ENV ProgramFiles
+        PATH_SUFFIXES
+        wxWidgets-3.1.0
+        wxWidgets-3.0.2
+        wxWidgets-3.0.1
+        wxWidgets-3.0.0
+        wxWidgets-2.9.5
+        wxWidgets-2.9.4
+        wxWidgets-2.9.3
+        wxWidgets-2.9.2
+        wxWidgets-2.9.1
+        wxWidgets-2.9.0
+        wxWidgets-2.8.9
+        wxWidgets-2.8.8
+        wxWidgets-2.8.7
+        wxWidgets-2.8.6
+        wxWidgets-2.8.5
+        wxWidgets-2.8.4
+        wxWidgets-2.8.3
+        wxWidgets-2.8.2
+        wxWidgets-2.8.1
+        wxWidgets-2.8.0
+        wxWidgets-2.7.4
+        wxWidgets-2.7.3
+        wxWidgets-2.7.2
+        wxWidgets-2.7.1
+        wxWidgets-2.7.0
+        wxWidgets-2.7.0-1
+        wxWidgets-2.6.4
+        wxWidgets-2.6.3
+        wxWidgets-2.6.2
+        wxWidgets-2.6.1
+        wxWidgets-2.5.4
+        wxWidgets-2.5.3
+        wxWidgets-2.5.2
+        wxWidgets-2.5.1
+        wxWidgets
+        DOC "wxWidgets base/installation directory"
         )
-    endif()
-    unset(_WX_TOOL)
-    unset(_WX_TOOLVER)
-    unset(_WX_ARCH)
 
-    # If wxWidgets_LIB_DIR changed, clear all libraries.
-    if(NOT WX_LIB_DIR STREQUAL wxWidgets_LIB_DIR)
-      set(WX_LIB_DIR ${wxWidgets_LIB_DIR} CACHE INTERNAL "wxWidgets_LIB_DIR")
-      WX_CLEAR_ALL_DBG_LIBS()
-      WX_CLEAR_ALL_REL_LIBS()
+    # If wxWidgets_ROOT_DIR changed, clear lib dir.
+    if(NOT WX_ROOT_DIR STREQUAL wxWidgets_ROOT_DIR)
+        set(WX_ROOT_DIR ${wxWidgets_ROOT_DIR}
+            CACHE INTERNAL "wxWidgets_ROOT_DIR")
+        set(wxWidgets_LIB_DIR "wxWidgets_LIB_DIR-NOTFOUND"
+            CACHE PATH "Cleared." FORCE)
     endif()
 
-    if(WX_LIB_DIR)
-      # If building shared libs, define WXUSINGDLL to use dllimport.
-      if(WX_LIB_DIR MATCHES "[dD][lL][lL]")
-        set(wxWidgets_DEFINITIONS WXUSINGDLL)
-        DBG_MSG_V("detected SHARED/DLL tree WX_LIB_DIR=${WX_LIB_DIR}")
-      endif()
-
-      # Search for available configuration types.
-      foreach(CFG mswunivud mswunivd mswud mswd mswunivu mswuniv mswu msw)
-        set(WX_${CFG}_FOUND FALSE)
-        if(EXISTS ${WX_LIB_DIR}/${CFG})
-          list(APPEND WX_CONFIGURATION_LIST ${CFG})
-          set(WX_${CFG}_FOUND TRUE)
-          set(WX_CONFIGURATION ${CFG})
+    if(WX_ROOT_DIR)
+        # Select one default tree inside the already determined wx tree.
+        # Prefer static/shared order usually consistent with build
+        # settings.
+        set(_WX_TOOL "")
+        set(_WX_TOOLVER "")
+        set(_WX_ARCH "")
+        if(MINGW)
+        set(_WX_TOOL gcc)
+        elseif(MSVC)
+        set(_WX_TOOL vc)
+        set(_WX_TOOLVER ${MSVC_TOOLSET_VERSION})
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(_WX_ARCH _x64)
         endif()
-      endforeach()
-      DBG_MSG_V("WX_CONFIGURATION_LIST=${WX_CONFIGURATION_LIST}")
-
-      if(WX_CONFIGURATION)
-        set(wxWidgets_FOUND TRUE)
-
-        # If the selected configuration wasn't found force the default
-        # one. Otherwise, use it but still force a refresh for
-        # updating the doc string with the current list of available
-        # configurations.
-        if(NOT WX_${wxWidgets_CONFIGURATION}_FOUND)
-          set(wxWidgets_CONFIGURATION ${WX_CONFIGURATION} CACHE STRING
-            "Set wxWidgets configuration (${WX_CONFIGURATION_LIST})" FORCE)
+        endif()
+        if(BUILD_SHARED_LIBS)
+        find_path(wxWidgets_LIB_DIR
+            NAMES
+            msw/wx/setup.h
+            mswd/wx/setup.h
+            mswu/wx/setup.h
+            mswud/wx/setup.h
+            mswuniv/wx/setup.h
+            mswunivd/wx/setup.h
+            mswunivu/wx/setup.h
+            mswunivud/wx/setup.h
+            PATHS
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_dll   # prefer shared
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_dll   # prefer shared
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_dll                 # prefer shared
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_lib
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_lib
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_lib
+            DOC "Path to wxWidgets libraries"
+            NO_DEFAULT_PATH
+            )
         else()
-          set(wxWidgets_CONFIGURATION ${wxWidgets_CONFIGURATION} CACHE STRING
-            "Set wxWidgets configuration (${WX_CONFIGURATION_LIST})" FORCE)
+        find_path(wxWidgets_LIB_DIR
+            NAMES
+            msw/wx/setup.h
+            mswd/wx/setup.h
+            mswu/wx/setup.h
+            mswud/wx/setup.h
+            mswuniv/wx/setup.h
+            mswunivd/wx/setup.h
+            mswunivu/wx/setup.h
+            mswunivud/wx/setup.h
+            PATHS
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_lib   # prefer static
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_lib   # prefer static
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_lib                 # prefer static
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}_xp${_WX_ARCH}_dll
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_TOOLVER}${_WX_ARCH}_dll
+            ${WX_ROOT_DIR}/lib/${_WX_TOOL}${_WX_ARCH}_dll
+            DOC "Path to wxWidgets libraries"
+            NO_DEFAULT_PATH
+            )
+        endif()
+        unset(_WX_TOOL)
+        unset(_WX_TOOLVER)
+        unset(_WX_ARCH)
+
+        # If wxWidgets_LIB_DIR changed, clear all libraries.
+        if(NOT WX_LIB_DIR STREQUAL wxWidgets_LIB_DIR)
+        set(WX_LIB_DIR ${wxWidgets_LIB_DIR} CACHE INTERNAL "wxWidgets_LIB_DIR")
+        WX_CLEAR_ALL_DBG_LIBS()
+        WX_CLEAR_ALL_REL_LIBS()
         endif()
 
-        # If release config selected, and both release/debug exist.
-        if(WX_${wxWidgets_CONFIGURATION}d_FOUND)
-          option(wxWidgets_USE_REL_AND_DBG
-            "Use release and debug configurations?" TRUE)
-          set(WX_USE_REL_AND_DBG ${wxWidgets_USE_REL_AND_DBG})
-        else()
-          # If the option exists (already in cache), force it false.
-          if(wxWidgets_USE_REL_AND_DBG)
-            set(wxWidgets_USE_REL_AND_DBG FALSE CACHE BOOL
-              "No ${wxWidgets_CONFIGURATION}d found." FORCE)
-          endif()
-          set(WX_USE_REL_AND_DBG FALSE)
+        if(WX_LIB_DIR)
+        # If building shared libs, define WXUSINGDLL to use dllimport.
+        if(WX_LIB_DIR MATCHES "[dD][lL][lL]")
+            set(wxWidgets_DEFINITIONS WXUSINGDLL)
+            DBG_MSG_V("detected SHARED/DLL tree WX_LIB_DIR=${WX_LIB_DIR}")
         endif()
 
-        # Get configuration parameters from the name.
-        WX_GET_NAME_COMPONENTS(${wxWidgets_CONFIGURATION} UNV UCD DBG)
+        # Search for available configuration types.
+        foreach(CFG mswunivud mswunivd mswud mswd mswunivu mswuniv mswu msw)
+            set(WX_${CFG}_FOUND FALSE)
+            if(EXISTS ${WX_LIB_DIR}/${CFG})
+            list(APPEND WX_CONFIGURATION_LIST ${CFG})
+            set(WX_${CFG}_FOUND TRUE)
+            set(WX_CONFIGURATION ${CFG})
+            endif()
+        endforeach()
+        DBG_MSG_V("WX_CONFIGURATION_LIST=${WX_CONFIGURATION_LIST}")
 
-        # Set wxWidgets lib setup include directory.
-        if(EXISTS ${WX_LIB_DIR}/${wxWidgets_CONFIGURATION}/wx/setup.h)
-          set(wxWidgets_INCLUDE_DIRS
-            ${WX_LIB_DIR}/${wxWidgets_CONFIGURATION})
-        else()
-          DBG_MSG("wxWidgets_FOUND FALSE because ${WX_LIB_DIR}/${wxWidgets_CONFIGURATION}/wx/setup.h does not exists.")
-          set(wxWidgets_FOUND FALSE)
+        if(WX_CONFIGURATION)
+            set(wxWidgets_FOUND TRUE)
+
+            # If the selected configuration wasn't found force the default
+            # one. Otherwise, use it but still force a refresh for
+            # updating the doc string with the current list of available
+            # configurations.
+            if(NOT WX_${wxWidgets_CONFIGURATION}_FOUND)
+            set(wxWidgets_CONFIGURATION ${WX_CONFIGURATION} CACHE STRING
+                "Set wxWidgets configuration (${WX_CONFIGURATION_LIST})" FORCE)
+            else()
+            set(wxWidgets_CONFIGURATION ${wxWidgets_CONFIGURATION} CACHE STRING
+                "Set wxWidgets configuration (${WX_CONFIGURATION_LIST})" FORCE)
+            endif()
+
+            # If release config selected, and both release/debug exist.
+            if(WX_${wxWidgets_CONFIGURATION}d_FOUND)
+            option(wxWidgets_USE_REL_AND_DBG
+                "Use release and debug configurations?" TRUE)
+            set(WX_USE_REL_AND_DBG ${wxWidgets_USE_REL_AND_DBG})
+            else()
+            # If the option exists (already in cache), force it false.
+            if(wxWidgets_USE_REL_AND_DBG)
+                set(wxWidgets_USE_REL_AND_DBG FALSE CACHE BOOL
+                "No ${wxWidgets_CONFIGURATION}d found." FORCE)
+            endif()
+            set(WX_USE_REL_AND_DBG FALSE)
+            endif()
+
+            # Get configuration parameters from the name.
+            WX_GET_NAME_COMPONENTS(${wxWidgets_CONFIGURATION} UNV UCD DBG)
+
+            # Set wxWidgets lib setup include directory.
+            if(EXISTS ${WX_LIB_DIR}/${wxWidgets_CONFIGURATION}/wx/setup.h)
+            set(wxWidgets_INCLUDE_DIRS
+                ${WX_LIB_DIR}/${wxWidgets_CONFIGURATION})
+            else()
+            DBG_MSG("wxWidgets_FOUND FALSE because ${WX_LIB_DIR}/${wxWidgets_CONFIGURATION}/wx/setup.h does not exists.")
+            set(wxWidgets_FOUND FALSE)
+            endif()
+
+            # Set wxWidgets main include directory.
+            if(EXISTS ${WX_ROOT_DIR}/include/wx/wx.h)
+            list(APPEND wxWidgets_INCLUDE_DIRS ${WX_ROOT_DIR}/include)
+            else()
+            DBG_MSG("wxWidgets_FOUND FALSE because WX_ROOT_DIR=${WX_ROOT_DIR} has no ${WX_ROOT_DIR}/include/wx/wx.h")
+            set(wxWidgets_FOUND FALSE)
+            endif()
+
+            # Find wxWidgets libraries.
+            WX_FIND_LIBS("${UNV}" "${UCD}" "${DBG}")
+            if(WX_USE_REL_AND_DBG)
+            WX_FIND_LIBS("${UNV}" "${UCD}" "d")
+            endif()
+
+            # Settings for requested libs (i.e., include dir, libraries, etc.).
+            WX_SET_LIBRARIES(wxWidgets_FIND_COMPONENTS "${DBG}")
+
+            # Add necessary definitions for unicode builds
+            if("${UCD}" STREQUAL "u")
+            list(APPEND wxWidgets_DEFINITIONS UNICODE _UNICODE)
+            endif()
+
+            # Add necessary definitions for debug builds
+            set(wxWidgets_DEFINITIONS_DEBUG _DEBUG __WXDEBUG__)
+
         endif()
-
-        # Set wxWidgets main include directory.
-        if(EXISTS ${WX_ROOT_DIR}/include/wx/wx.h)
-          list(APPEND wxWidgets_INCLUDE_DIRS ${WX_ROOT_DIR}/include)
-        else()
-          DBG_MSG("wxWidgets_FOUND FALSE because WX_ROOT_DIR=${WX_ROOT_DIR} has no ${WX_ROOT_DIR}/include/wx/wx.h")
-          set(wxWidgets_FOUND FALSE)
         endif()
-
-        # Find wxWidgets libraries.
-        WX_FIND_LIBS("${UNV}" "${UCD}" "${DBG}")
-        if(WX_USE_REL_AND_DBG)
-          WX_FIND_LIBS("${UNV}" "${UCD}" "d")
-        endif()
-
-        # Settings for requested libs (i.e., include dir, libraries, etc.).
-        WX_SET_LIBRARIES(wxWidgets_FIND_COMPONENTS "${DBG}")
-
-        # Add necessary definitions for unicode builds
-        if("${UCD}" STREQUAL "u")
-          list(APPEND wxWidgets_DEFINITIONS UNICODE _UNICODE)
-        endif()
-
-        # Add necessary definitions for debug builds
-        set(wxWidgets_DEFINITIONS_DEBUG _DEBUG __WXDEBUG__)
-
-      endif()
     endif()
   endif()
-
 #=====================================================================
 # UNIX_FIND_STYLE
 #=====================================================================
